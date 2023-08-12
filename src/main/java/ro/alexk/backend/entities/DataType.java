@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import java.util.List;
 
 @Entity
-public class ParamType {
+public class DataType {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
@@ -14,10 +14,12 @@ public class ParamType {
     private Name name;
 
     // references
-    @OneToMany(mappedBy = "type", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    @OneToMany(mappedBy = "dataType", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Param> params;
+    @OneToMany(mappedBy = "dataType", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<Pin> pins;
 
     public enum Name {
-        INTEGER, STRING, BOOLEAN
+        BOOLEAN, INTEGER, JSON, RGB
     }
 }

@@ -12,8 +12,8 @@ public class Param {
     @Column(nullable = false)
     private String name;
     @ManyToOne(optional = false)
-    @JoinColumn(name = "type_id")
-    private ParamType type;
+    @JoinColumn(name = "data_type_id")
+    private DataType dataType;
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "blueprint_id")
     private Blueprint blueprint;

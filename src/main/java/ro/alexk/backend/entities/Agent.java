@@ -25,5 +25,5 @@ public class Agent {
     @OneToMany(mappedBy = "agent", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<AgentParam> params;
     @OneToMany(mappedBy = "agent", cascade = CascadeType.REMOVE, orphanRemoval = true)
-    private List<Pin> pins;
+    private List<AgentPin> pins;
 }

@@ -3,20 +3,15 @@ package ro.alexk.backend.services.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ro.alexk.backend.entities.*;
-import ro.alexk.backend.repositories.AgentParamsRepository;
-import ro.alexk.backend.repositories.AgentRepository;
-import ro.alexk.backend.repositories.HwAgentRepository;
-import ro.alexk.backend.repositories.PinRepository;
+import ro.alexk.backend.repositories.*;
 import ro.alexk.backend.services.AgentService;
-
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
 public class AgentServiceImpl implements AgentService {
-    private final AgentParamsRepository agentParamsRepository;
-    private final PinRepository pinRepository;
     private final AgentRepository agentRepository;
+    private final AgentParamsRepository agentParamsRepository;
+    private final AgentPinRepository agentPinRepository;
     private final HwAgentRepository hwAgentRepository;
 
     @Override
@@ -38,14 +33,12 @@ public class AgentServiceImpl implements AgentService {
                 ).toList()
         );
 
-        var noPins = blueprint.getNoInputPins() + blueprint.getNoOutputPins();
-        pinRepository.saveAll(IntStream
-                .range(0, noPins)
-                .mapToObj(idx -> Pin.builder()
-                        .type(idx < blueprint.getNoInputPins() ? Pin.PinType.IN : Pin.PinType.OUT)
+        agentPinRepository.saveAll(blueprint.getPins().stream()
+                .map(pin -> AgentPin.builder()
+                        .pin(pin)
                         .agent(agent)
-                        .defaultValue("0")
-                        .lastValue("0")
+                        .lastValue(pin.getDefaultValue())
+                        .srcPin(null)
                         .build()
                 ).toList()
         );

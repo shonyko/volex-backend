@@ -15,11 +15,11 @@ public class Blueprint {
     private String name;
     @Column(nullable = false)
     private String displayName;
+    // TODO: are these needed? we can get count of params and pins
     @Column(nullable = false)
     private int noInputPins;
     @Column(nullable = false)
     private int noOutputPins;
-    // TODO: is this needed? we can get count of params
     @Column(nullable = false)
     private int noParams;
     @Column(nullable = false)
@@ -30,6 +30,8 @@ public class Blueprint {
     // references
     @OneToMany(mappedBy = "blueprint", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Param> params;
+    @OneToMany(mappedBy = "blueprint", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<Pin> pins;
     @OneToMany(mappedBy = "blueprint", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Agent> agents;
 }
