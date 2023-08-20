@@ -7,6 +7,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import java.util.List;
+
 @Entity
 @Builder
 @NoArgsConstructor
@@ -27,4 +29,8 @@ public class AgentPin {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "src_pin_id")
     private AgentPin srcPin;
+
+    // references
+    @OneToMany(mappedBy = "srcPin")
+    private List<AgentPin> connectedPins;
 }

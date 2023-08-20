@@ -4,6 +4,7 @@ public interface Constants {
     interface Events {
         String MESSAGE = "msg";
         String PAIR = "pair";
+        String CONFIG = "conf";
 
         interface Socket {
             String REGISTER = "register";
