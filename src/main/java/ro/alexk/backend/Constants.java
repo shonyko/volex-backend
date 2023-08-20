@@ -5,6 +5,7 @@ public interface Constants {
         String MESSAGE = "msg";
         String PAIR = "pair";
         String CONFIG = "conf";
+        String PIN_VALUE = "pin_value";
 
         interface Socket {
             String REGISTER = "register";

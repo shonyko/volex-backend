@@ -11,6 +11,7 @@ import reactor.core.publisher.Mono;
 import ro.alexk.backend.Constants.Events;
 import ro.alexk.backend.Constants.Services;
 import ro.alexk.backend.models.websocket.*;
+import ro.alexk.backend.services.AgentPinService;
 import ro.alexk.backend.services.ConfigRequestService;
 import ro.alexk.backend.services.PairRequestService;
 import ro.alexk.backend.services.SocketService;
@@ -18,6 +19,7 @@ import ro.alexk.backend.services.SocketService;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static ro.alexk.backend.utils.Utils.*;
 
@@ -27,12 +29,25 @@ import static ro.alexk.backend.utils.Utils.*;
 public class SocketServiceImpl implements SocketService {
     private final PairRequestService pairRequestService;
     private final ConfigRequestService configRequestService;
+    private final AgentPinService agentPinService;
 
     private final List<String> subscriptions = new ArrayList<>();
     private final Socket socket = initSocket();
     void addEventHandler(Socket socket, String event, Emitter.Listener fn) {
         socket.on(event, fn);
         subscriptions.add(event);
+    }
+
+    private <T> Emitter.Listener createCallback(Consumer<T> consumer, Class<T> clazz) {
+        return data -> {
+            try {
+                consumer.accept(deserialize(clazz, data));
+            } catch (JsonProcessingException e) {
+                log.error("Invalid json: {}", e.getMessage());
+            } catch (Exception e) {
+                log.error("Unexpected error: {}", e.getMessage());
+            }
+        };
     }
 
     private Socket initSocket() {
@@ -49,24 +64,10 @@ public class SocketServiceImpl implements SocketService {
                 }
             });
         });
-        addEventHandler(socket, Events.PAIR, data -> {
-            try {
-                onPairRequest(deserialize(PairRequestEvent.class, data));
-            } catch (JsonProcessingException e) {
-                log.error("Invalid json: {}", e.getMessage());
-            } catch (Exception e) {
-                log.error("Unexpected error: {}", e.getMessage());
-            }
-        });
-        addEventHandler(socket, Events.CONFIG, data -> {
-            try {
-                onConfigRequest(deserialize(ConfigRequestEvent.class, data));
-            } catch (JsonProcessingException e) {
-                log.error("Invalid json: {}", e.getMessage());
-            } catch (Exception e) {
-                log.error("Unexpected error: {}", e.getMessage());
-            }
-        });
+
+        addEventHandler(socket, Events.PAIR, createCallback(this::onPairRequest, PairRequestEvent.class));
+        addEventHandler(socket, Events.CONFIG, createCallback(this::onConfigRequest, ConfigRequestEvent.class));
+        addEventHandler(socket, Events.PIN_VALUE, createCallback(this::onPinValue, PinValueEvent.class));
 
         return socket.connect();
     }
@@ -130,5 +131,9 @@ public class SocketServiceImpl implements SocketService {
                 .build();
         System.out.println("sent " + msg);
         socket.emit(Events.MESSAGE, toJsonObject(msg));
+    }
+
+    private void onPinValue(PinValueEvent pv) {
+        agentPinService.handlePinValueEvent(pv);
     }
 }
