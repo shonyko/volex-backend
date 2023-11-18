@@ -1,25 +1,34 @@
 package ro.alexk.backend.services.impl;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ro.alexk.backend.models.db.WifiCredentials;
+import ro.alexk.backend.repositories.WifiCredentialsRepository;
 import ro.alexk.backend.services.WifiCredentialsService;
 
+import java.sql.SQLException;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
+@Transactional(rollbackFor = SQLException.class)
 public class WifiCredentialsServiceImpl implements WifiCredentialsService {
+    private final WifiCredentialsRepository repository;
+
     @Override
-    public Optional<WifiCredentials> getCredentials() {
-        return Optional.of(
-                WifiCredentials.builder()
-                .ssid("UPC8894AD1")
-                .pass("erBBjuh7cbnc")
-                .build()
-        );
+    public WifiCredentials getCredentials() {
+        var ssid = repository.getSSID();
+        var pass = repository.getPass();
+        return WifiCredentials.builder()
+                .ssid(ssid)
+                .pass(pass)
+                .build();
     }
 
     @Override
-    public boolean hasCredentials() {
-        return true;
+    public void setCredentials(WifiCredentials credentials) {
+        repository.setSSID(credentials.ssid());
+        repository.setPass(credentials.pass());
     }
 }

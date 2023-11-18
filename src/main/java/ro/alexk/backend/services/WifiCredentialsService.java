@@ -5,6 +5,6 @@ import ro.alexk.backend.models.db.WifiCredentials;
 import java.util.Optional;
 
 public interface WifiCredentialsService {
-    Optional<WifiCredentials> getCredentials();
-    boolean hasCredentials();
+    WifiCredentials getCredentials();
+    void setCredentials(WifiCredentials credentials);
 }

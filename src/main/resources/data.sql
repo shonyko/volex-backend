@@ -1,5 +1,10 @@
 select count(*) from pg_aggregate;
 
+insert into util (id, name, value) values
+   (1, 'wifi_ssid', 'UPC8894AD1'),
+   (2, 'wifi_pass', '[REDACTED]')
+;
+
 insert into data_type (id, name) values
     (1, 'BOOLEAN'),
     (2, 'INTEGER'),
