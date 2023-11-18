@@ -31,7 +31,7 @@ public class PairRequestServiceImpl implements PairRequestService {
     @Override
     public Optional<WifiCredentials> handlePairRequestEvent(PairRequestEvent pre) {
         if(hwAgentRepository.existsByMacAddr(pre.mac())) {
-            return wifiCredentialsService.getCredentials();
+            return Optional.of(wifiCredentialsService.getCredentials());
         }
         if(!repository.existsByMacAddr(pre.mac())) {
             createNew(pre);
