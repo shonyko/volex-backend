@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter
 @Builder
@@ -20,4 +22,6 @@ public class PairRequest {
     private Blueprint blueprint;
     @Column(unique = true, nullable = false)
     private String macAddr;
+    @Column(nullable = false)
+    private LocalDateTime date = LocalDateTime.now();
 }

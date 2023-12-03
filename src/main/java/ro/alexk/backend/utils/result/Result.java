@@ -1,4 +1,4 @@
 package ro.alexk.backend.utils.result;
 
-public sealed interface Result<V, E extends Error> permits Ok, Err {
+public sealed interface Result<V> permits Ok, Err {
 }

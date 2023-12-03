@@ -8,7 +8,6 @@ import ro.alexk.backend.repositories.WifiCredentialsRepository;
 import ro.alexk.backend.services.WifiCredentialsService;
 
 import java.sql.SQLException;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor

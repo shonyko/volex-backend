@@ -1,6 +1,5 @@
 package ro.alexk.backend.services.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
@@ -15,10 +14,14 @@ import ro.alexk.backend.services.AgentPinService;
 import ro.alexk.backend.services.ConfigRequestService;
 import ro.alexk.backend.services.PairRequestService;
 import ro.alexk.backend.services.SocketService;
+import ro.alexk.backend.utils.result.Err;
+import ro.alexk.backend.utils.result.Error;
+import ro.alexk.backend.utils.result.Ok;
 
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static ro.alexk.backend.utils.Utils.*;
@@ -32,7 +35,7 @@ public class SocketServiceImpl implements SocketService {
     private final AgentPinService agentPinService;
 
     private final List<String> subscriptions = new ArrayList<>();
-    private final Socket socket = initSocket();
+
     void addEventHandler(Socket socket, String event, Emitter.Listener fn) {
         socket.on(event, fn);
         subscriptions.add(event);
@@ -40,27 +43,23 @@ public class SocketServiceImpl implements SocketService {
 
     private <T> Emitter.Listener createCallback(Consumer<T> consumer, Class<T> clazz) {
         return data -> {
-            try {
-                consumer.accept(deserialize(clazz, data));
-            } catch (JsonProcessingException e) {
-                log.error("Invalid json: {}", e.getMessage());
-            } catch (Exception e) {
-                log.error("Unexpected error: {}", e.getMessage());
+            switch (deserialize(clazz, data)) {
+                case Ok(T val) -> consumer.accept(val);
+                case Err(Error err) -> log.error("Could not deserialize data: {}", err.getMessage());
             }
         };
     }
 
     private Socket initSocket() {
-        var socket = IO.socket(URI.create("ws://192.168.0.220:3000")).connect();
+        var socket = IO.socket(URI.create("ws://localhost:3000")).connect(); // 192.168.0.220
         socket.on(Socket.EVENT_CONNECT_ERROR, err -> log.error("Error connecting: {}", err));
         socket.on(Socket.EVENT_CONNECT, none -> {
             log.info("Connected!");
 
             socket.emit(Events.Socket.REGISTER, new String[]{Services.BACKEND}, data -> {
-                try {
-                    onRegistered(deserialize(Response.class, data));
-                } catch (JsonProcessingException e) {
-                    log.error("Invalid json");
+                switch (deserialize(Response.class, data)) {
+                    case Ok(Response res) -> onRegistered(res);
+                    case Err(Error err) -> log.error("Could not deserialize data: {}", err.getMessage());
                 }
             });
         });
@@ -72,14 +71,25 @@ public class SocketServiceImpl implements SocketService {
         return socket.connect();
     }
 
+    private void emit(String event, Message msg) {
+        switch (toJsonObject(msg)) {
+            case Ok(var jsonObj) -> {
+                socket.emit(event, jsonObj);
+                System.out.println("sent " + msg);
+            }
+            case Err(Error err) -> log.error("Could not serialize message: {}", err.getMessage());
+        }
+    }
+
     public Mono<Response> sendMessage(Message msg) {
         return Mono.create(emitter ->
                 socket.emit(Events.MESSAGE, new Object[]{toJsonObject(msg)}, data -> {
-                    try {
-                        emitter.success(deserialize(Response.class, data));
-                    } catch (JsonProcessingException e) {
-                        log.error("Invalid message response: ", e);
-                        emitter.error(e);
+                    switch (deserialize(Response.class, data)) {
+                        case Ok(Response res) -> emitter.success(res);
+                        case Err(Error err) -> {
+                            log.error("Could not deserialize data: {}", err.getMessage());
+                            emitter.error(err.getCause());
+                        }
                     }
                 })
         );
@@ -96,41 +106,55 @@ public class SocketServiceImpl implements SocketService {
         }
 
         log.info("Service registered!");
-    }
+    }    private final Socket socket = initSocket();
 
     private void onPairRequest(PairRequestEvent pr) {
         pairRequestService.handlePairRequestEvent(pr)
-                .map(c -> PairAckCmd
+                .map(wifiCredentials -> PairAckCmd
                         .builder()
                         .mac(pr.mac())
-                        .ssid(c.ssid())
-                        .pass(c.pass())
+                        .ssid(wifiCredentials.ssid())
+                        .pass(wifiCredentials.pass())
                         .build()
-                ).map(cmd -> Message
-                        .builder()
-                        .to(Services.SERIAL_LISTENER)
-                        .cmd(PairAckCmd.CMD)
-                        .data(toJson(cmd))
-                        .build()
-                ).ifPresent(msg -> {
-                    System.out.println("sent " + msg);
-                    socket.emit(Events.MESSAGE, toJsonObject(msg));
-                });
+                ).map(cmd ->
+                        switch (toJson(cmd)) {
+                            case Ok(String json) -> Message
+                                    .builder()
+                                    .to(Services.SERIAL_LISTENER)
+                                    .cmd(PairAckCmd.CMD)
+                                    .data(json)
+                                    .build();
+                            case Err(Error err) -> {
+                                log.error("Could not serialize command: {}", err.getMessage());
+                                yield null;
+                            }
+                        }
+                ).ifPresent(msg -> emit(Events.MESSAGE, msg));
     }
 
     private void onConfigRequest(ConfigRequestEvent cr) {
         var config = configRequestService.handleConfigRequest(cr);
-        var cmd = ConfigCmd.builder()
-                .mac(cr.mac())
-                .config(toJson(config))
-                .build();
-        var msg = Message.builder()
-                .to(Services.MQTT_BROKER)
-                .cmd(ConfigCmd.CMD)
-                .data(toJson(cmd))
-                .build();
-        System.out.println("sent " + msg);
-        socket.emit(Events.MESSAGE, toJsonObject(msg));
+        Optional.of(config)
+                .map(cfg -> switch (toJson(cfg)) {
+                    case Ok(String json) -> ConfigCmd.builder()
+                            .mac(cr.mac())
+                            .config(json)
+                            .build();
+                    case Err(Error err) -> {
+                        log.error("Could not serialize configuration: {}", err.getMessage());
+                        yield null;
+                    }
+                }).map(cmd -> switch (toJson(cmd)) {
+                    case Ok(String json) -> Message.builder()
+                            .to(Services.MQTT_BROKER)
+                            .cmd(ConfigCmd.CMD)
+                            .data(json)
+                            .build();
+                    case Err(Error err) -> {
+                        log.error("Could not serialize command: {}", err.getMessage());
+                        yield null;
+                    }
+                }).ifPresent(msg -> emit(Events.MESSAGE, msg));
     }
 
     private void onPinValue(PinValueEvent pv) {

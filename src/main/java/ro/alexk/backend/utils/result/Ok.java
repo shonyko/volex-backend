@@ -1,4 +1,4 @@
 package ro.alexk.backend.utils.result;
 
-public record Ok<V, E extends Error>() implements Result<V, E> {
+public record Ok<V>(V value) implements Result<V> {
 }
