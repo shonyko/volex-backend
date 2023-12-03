@@ -1,14 +1,17 @@
 package ro.alexk.backend.services.impl;
 
+import io.socket.client.Ack;
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import ro.alexk.backend.Constants.Events;
 import ro.alexk.backend.Constants.Services;
+import ro.alexk.backend.config.WebSocketConfig;
 import ro.alexk.backend.models.websocket.*;
 import ro.alexk.backend.services.AgentPinService;
 import ro.alexk.backend.services.ConfigRequestService;
@@ -33,8 +36,10 @@ public class SocketServiceImpl implements SocketService {
     private final PairRequestService pairRequestService;
     private final ConfigRequestService configRequestService;
     private final AgentPinService agentPinService;
+    private final WebSocketConfig webSocketConfig;
 
     private final List<String> subscriptions = new ArrayList<>();
+    private Socket socket;
 
     void addEventHandler(Socket socket, String event, Emitter.Listener fn) {
         socket.on(event, fn);
@@ -50,13 +55,15 @@ public class SocketServiceImpl implements SocketService {
         };
     }
 
-    private Socket initSocket() {
-        var socket = IO.socket(URI.create("ws://localhost:3000")).connect(); // 192.168.0.220
+    @PostConstruct
+    private void initSocket() {
+        String connString = String.format("ws://%s:%s", webSocketConfig.addr(), webSocketConfig.port());
+        socket = IO.socket(URI.create(connString));
         socket.on(Socket.EVENT_CONNECT_ERROR, err -> log.error("Error connecting: {}", err));
         socket.on(Socket.EVENT_CONNECT, none -> {
             log.info("Connected!");
 
-            socket.emit(Events.Socket.REGISTER, new String[]{Services.BACKEND}, data -> {
+            socket.emit(Events.Socket.REGISTER, Services.BACKEND, (Ack) data -> {
                 switch (deserialize(Response.class, data)) {
                     case Ok(Response res) -> onRegistered(res);
                     case Err(Error err) -> log.error("Could not deserialize data: {}", err.getMessage());
@@ -68,22 +75,26 @@ public class SocketServiceImpl implements SocketService {
         addEventHandler(socket, Events.CONFIG, createCallback(this::onConfigRequest, ConfigRequestEvent.class));
         addEventHandler(socket, Events.PIN_VALUE, createCallback(this::onPinValue, PinValueEvent.class));
 
-        return socket.connect();
+        socket.connect();
     }
 
-    private void emit(String event, Message msg) {
+    private void emit(String event, Message msg, Ack ack) {
         switch (toJsonObject(msg)) {
             case Ok(var jsonObj) -> {
-                socket.emit(event, jsonObj);
+                socket.emit(event, jsonObj, ack);
                 System.out.println("sent " + msg);
             }
             case Err(Error err) -> log.error("Could not serialize message: {}", err.getMessage());
         }
     }
 
+    private void emit(String event, Message msg) {
+        emit(event, msg, null);
+    }
+
     public Mono<Response> sendMessage(Message msg) {
         return Mono.create(emitter ->
-                socket.emit(Events.MESSAGE, new Object[]{toJsonObject(msg)}, data -> {
+                emit(Events.MESSAGE, msg, data -> {
                     switch (deserialize(Response.class, data)) {
                         case Ok(Response res) -> emitter.success(res);
                         case Err(Error err) -> {
@@ -106,7 +117,7 @@ public class SocketServiceImpl implements SocketService {
         }
 
         log.info("Service registered!");
-    }    private final Socket socket = initSocket();
+    }
 
     private void onPairRequest(PairRequestEvent pr) {
         pairRequestService.handlePairRequestEvent(pr)
