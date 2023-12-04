@@ -47,3 +47,7 @@ insert into hw_agent (id, mac_addr, agent_id) values
 insert into agent_pin (id, pin_id, agent_id, last_value, src_pin_id) values
     (1, 1, 2, 'true', null)
 ;
+
+insert into agent_param (id, param_id, agent_id, value) values
+    (1, 1, 1, 'false')
+;
