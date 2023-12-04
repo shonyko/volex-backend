@@ -1,6 +1,7 @@
 package ro.alexk.backend.services.impl;
 
 import io.socket.client.Ack;
+import io.socket.client.AckWithTimeout;
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
@@ -18,7 +19,7 @@ import ro.alexk.backend.services.ConfigRequestService;
 import ro.alexk.backend.services.PairRequestService;
 import ro.alexk.backend.services.SocketService;
 import ro.alexk.backend.utils.result.Err;
-import ro.alexk.backend.utils.result.Error;
+import ro.alexk.backend.utils.errors.Error;
 import ro.alexk.backend.utils.result.Ok;
 
 import java.net.URI;
@@ -82,7 +83,7 @@ public class SocketServiceImpl implements SocketService {
         switch (toJsonObject(msg)) {
             case Ok(var jsonObj) -> {
                 socket.emit(event, jsonObj, ack);
-                System.out.println("sent " + msg);
+                log.info("Sent {}", msg);
             }
             case Err(Error err) -> log.error("Could not serialize message: {}", err.getMessage());
         }
@@ -94,13 +95,20 @@ public class SocketServiceImpl implements SocketService {
 
     public Mono<Response> sendMessage(Message msg) {
         return Mono.create(emitter ->
-                emit(Events.MESSAGE, msg, data -> {
-                    switch (deserialize(Response.class, data)) {
-                        case Ok(Response res) -> emitter.success(res);
-                        case Err(Error err) -> {
-                            log.error("Could not deserialize data: {}", err.getMessage());
-                            emitter.error(err.getCause());
+                emit(Events.MESSAGE, msg, new AckWithTimeout(1000) {
+                    @Override
+                    public void onSuccess(Object... data) {
+                        switch (deserialize(Response.class, data)) {
+                            case Ok(Response res) -> emitter.success(res);
+                            case Err(Error err) -> {
+                                log.error("Could not deserialize data: {}", err.getMessage());
+                                emitter.error(err.getCause());
+                            }
                         }
+                    }
+                    @Override
+                    public void onTimeout() {
+                        emitter.success(new Response(false, "request timeout", null));
                     }
                 })
         );

@@ -6,7 +6,7 @@ import org.json.JSONObject;
 import ro.alexk.backend.utils.option.None;
 import ro.alexk.backend.utils.option.Some;
 import ro.alexk.backend.utils.result.Err;
-import ro.alexk.backend.utils.result.Error;
+import ro.alexk.backend.utils.errors.Error;
 import ro.alexk.backend.utils.result.Ok;
 import ro.alexk.backend.utils.result.Result;
 

@@ -3,8 +3,11 @@ package ro.alexk.backend.services.impl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ro.alexk.backend.entities.*;
+import ro.alexk.backend.models.rest.AgentDTO;
 import ro.alexk.backend.repositories.*;
 import ro.alexk.backend.services.AgentService;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -49,5 +52,20 @@ public class AgentServiceImpl implements AgentService {
                 .build();
 
         hwAgentRepository.save(hwAgent);
+    }
+
+    @Override
+    public List<AgentDTO> getAll() {
+        return agentRepository
+                .getAll().stream()
+                .map(ap -> AgentDTO
+                        .builder()
+                        .id(ap.getId())
+                        .name(ap.getName())
+                        .blueprintId(ap.getBlueprintId())
+                        .macAddr(ap.getMacAddr())
+                        .build()
+                )
+                .toList();
     }
 }

@@ -1,4 +1,4 @@
-package ro.alexk.backend.utils.result;
+package ro.alexk.backend.utils.errors;
 
 public class Error extends Exception {
     public Error(String msg) {
