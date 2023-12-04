@@ -5,8 +5,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ro.alexk.backend.entities.AgentPin;
+import ro.alexk.backend.models.db.projections.AgentPinProj;
 import ro.alexk.backend.models.db.projections.config.SrcPin;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface AgentPinRepository extends JpaRepository<AgentPin, Integer> {
@@ -14,6 +16,9 @@ public interface AgentPinRepository extends JpaRepository<AgentPin, Integer> {
     Optional<SrcPin> getSrcPinById(@Param("id") Integer id);
 
     @Modifying
-    @Query("update AgentPin ap set ap.lastValue = :value where ap.id = :id")
+    @Query("update AgentPin ap set ap.lastValue = :value where ap.id = :id or ap.srcPin.id = :id")
     void updatePinValue(@Param("id") Integer id, String value);
+
+    @Query("select ap.id as id, ap.pin.name as name, ap.pin.type as pinType, ap.pin.dataType.name as dataType, ap.pin.blueprint.id as blueprintId, ap.agent.id as agentId, ap.lastValue as value, ap.srcPin.id as srcPinId from AgentPin ap")
+    List<AgentPinProj> getAll();
 }

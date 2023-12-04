@@ -34,3 +34,16 @@ insert into pin (id, name, type, data_type_id, default_value, blueprint_id) valu
     (5, 'Value', 1, 1, 'false', 3),
     (6, 'Value', 1, 2, '0', 4)
 ;
+
+insert into agent (id, name, blueprint_id) values
+    (1, 'test', 1),
+    (2, 'test_hw', 3)
+;
+
+insert into hw_agent (id, mac_addr, agent_id) values
+    (1, 'macmac', 2)
+;
+
+insert into agent_pin (id, pin_id, agent_id, last_value, src_pin_id) values
+    (1, 1, 2, 'true', null)
+;
