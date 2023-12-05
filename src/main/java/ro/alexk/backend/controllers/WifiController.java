@@ -21,6 +21,6 @@ public class WifiController {
     public ResponseEntity<Void> post(@RequestBody WifiCredentials credentials) {
         service.setCredentials(credentials);
         //TODO: update all clients via websockets
-        return ResponseEntity.ok(null);
+        return ResponseEntity.noContent().build();
     }
 }
