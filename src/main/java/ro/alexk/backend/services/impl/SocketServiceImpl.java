@@ -18,8 +18,8 @@ import ro.alexk.backend.services.AgentPinService;
 import ro.alexk.backend.services.ConfigRequestService;
 import ro.alexk.backend.services.PairRequestService;
 import ro.alexk.backend.services.SocketService;
-import ro.alexk.backend.utils.result.Err;
 import ro.alexk.backend.utils.errors.Error;
+import ro.alexk.backend.utils.result.Err;
 import ro.alexk.backend.utils.result.Ok;
 
 import java.net.URI;
@@ -51,7 +51,7 @@ public class SocketServiceImpl implements SocketService {
         return data -> {
             switch (deserialize(clazz, data)) {
                 case Ok(T val) -> consumer.accept(val);
-                case Err(Error err) -> log.error("Could not deserialize data: {}", err.getMessage());
+                case Err(Error err) -> log.error("Could not deserialize data: ", err);
             }
         };
     }
@@ -60,14 +60,14 @@ public class SocketServiceImpl implements SocketService {
     private void initSocket() {
         String connString = String.format("ws://%s:%s", webSocketConfig.addr(), webSocketConfig.port());
         socket = IO.socket(URI.create(connString));
-        socket.on(Socket.EVENT_CONNECT_ERROR, err -> log.error("Error connecting: {}", err));
+        socket.on(Socket.EVENT_CONNECT_ERROR, err -> log.error("Error connecting: ", err));
         socket.on(Socket.EVENT_CONNECT, none -> {
             log.info("Connected!");
 
             socket.emit(Events.Socket.REGISTER, Services.BACKEND, (Ack) data -> {
                 switch (deserialize(Response.class, data)) {
                     case Ok(Response res) -> onRegistered(res);
-                    case Err(Error err) -> log.error("Could not deserialize data: {}", err.getMessage());
+                    case Err(Error err) -> log.error("Could not deserialize data: ", err);
                 }
             });
         });
@@ -77,6 +77,9 @@ public class SocketServiceImpl implements SocketService {
         addEventHandler(socket, Events.PIN_VALUE, createCallback(this::onPinValue, PinValueEvent.class));
 
         socket.connect();
+
+        agentPinService.setSocketService(this);
+        pairRequestService.setSocketService(this);
     }
 
     private void emit(String event, Message msg, Ack ack) {
@@ -85,7 +88,7 @@ public class SocketServiceImpl implements SocketService {
                 socket.emit(event, jsonObj, ack);
                 log.info("Sent {}", msg);
             }
-            case Err(Error err) -> log.error("Could not serialize message: {}", err.getMessage());
+            case Err(Error err) -> log.error("Could not serialize message: ", err);
         }
     }
 
@@ -95,23 +98,39 @@ public class SocketServiceImpl implements SocketService {
 
     public Mono<Response> sendMessage(Message msg) {
         return Mono.create(emitter ->
-                emit(Events.MESSAGE, msg, new AckWithTimeout(1000) {
+                emit(Events.MESSAGE, msg, new AckWithTimeout(2000) {
                     @Override
                     public void onSuccess(Object... data) {
                         switch (deserialize(Response.class, data)) {
                             case Ok(Response res) -> emitter.success(res);
                             case Err(Error err) -> {
-                                log.error("Could not deserialize data: {}", err.getMessage());
+                                log.error("Could not deserialize data: ", err);
                                 emitter.error(err.getCause());
                             }
                         }
                     }
+
                     @Override
                     public void onTimeout() {
                         emitter.success(new Response(false, "request timeout", null));
                     }
                 })
         );
+    }
+
+    public <T> void broadcast(String event, T obj) {
+//        switch (toJson(obj)) {
+//            case Ok(String data) -> {
+                switch (toJsonObject(new Broadcast<>(event, obj))) {
+                    case Ok(var jsonObj) -> {
+                        socket.emit(Events.BROADCAST, jsonObj);
+                        log.info("Sent {}", jsonObj);
+                    }
+                    case Err(Error err) -> log.error("Could not serialize broadcast object: ", err);
+                }
+//            }
+//            case Err(Error err) -> log.error("Could not serialize data for broadcast: ", err);
+//        }
     }
 
     private void onRegistered(Response res) {
@@ -144,7 +163,7 @@ public class SocketServiceImpl implements SocketService {
                                     .data(json)
                                     .build();
                             case Err(Error err) -> {
-                                log.error("Could not serialize command: {}", err.getMessage());
+                                log.error("Could not serialize command: ", err);
                                 yield null;
                             }
                         }
@@ -160,7 +179,7 @@ public class SocketServiceImpl implements SocketService {
                             .config(json)
                             .build();
                     case Err(Error err) -> {
-                        log.error("Could not serialize configuration: {}", err.getMessage());
+                        log.error("Could not serialize configuration: ", err);
                         yield null;
                     }
                 }).map(cmd -> switch (toJson(cmd)) {
@@ -170,7 +189,7 @@ public class SocketServiceImpl implements SocketService {
                             .data(json)
                             .build();
                     case Err(Error err) -> {
-                        log.error("Could not serialize command: {}", err.getMessage());
+                        log.error("Could not serialize command: ", err);
                         yield null;
                     }
                 }).ifPresent(msg -> emit(Events.MESSAGE, msg));

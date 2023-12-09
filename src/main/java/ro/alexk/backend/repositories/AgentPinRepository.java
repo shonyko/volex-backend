@@ -17,8 +17,19 @@ public interface AgentPinRepository extends JpaRepository<AgentPin, Integer> {
 
     @Modifying
     @Query("update AgentPin ap set ap.lastValue = :value where ap.id = :id or ap.srcPin.id = :id")
-    void updatePinValue(@Param("id") Integer id, String value);
+    int updatePinValue(@Param("id") Integer id, String value);
+
+    @Modifying
+    @Query(value = "update agent_pin ap set src_pin_id = :srcId, last_value = src.last_value from agent_pin src where ap.id = :id and src.id = :srcId", nativeQuery = true)
+    int updatePinSource(@Param("id") Integer id, Integer srcId);
+
+    @Modifying
+    @Query("update AgentPin ap set ap.srcPin.id = null where ap.id = :id")
+    int unsetPinSource(@Param("id") Integer id);
 
     @Query("select ap.id as id, ap.pin.name as name, ap.pin.type as pinType, ap.pin.dataType.name as dataType, ap.pin.blueprint.id as blueprintId, ap.agent.id as agentId, ap.lastValue as value, ap.srcPin.id as srcPinId from AgentPin ap")
     List<AgentPinProj> getAll();
+
+    @Query("select ap.lastValue from AgentPin ap where ap.id = :id")
+    String getValueById(@Param("id") Integer id);
 }

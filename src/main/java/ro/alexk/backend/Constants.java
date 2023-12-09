@@ -2,10 +2,18 @@ package ro.alexk.backend;
 
 public interface Constants {
     interface Events {
+        String BROADCAST = "event";
         String MESSAGE = "msg";
         String PAIR = "pair";
         String CONFIG = "conf";
+        String PARAM_VALUE = "param_value";
         String PIN_VALUE = "pin_value";
+        String PIN_SOURCE = "pin_source";
+        String NEW_PAIR_REQUEST = "new_pair_request";
+        String DEL_PAIR_REQUEST = "del_pair_request";
+        String NEW_PARAM = "new_param";
+        String NEW_PIN = "new_pin";
+        String NEW_AGENT = "new_agent";
 
         interface Socket {
             String REGISTER = "register";

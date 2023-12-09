@@ -4,10 +4,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ro.alexk.backend.entities.*;
 import ro.alexk.backend.models.rest.AgentDTO;
-import ro.alexk.backend.repositories.*;
+import ro.alexk.backend.repositories.AgentParamsRepository;
+import ro.alexk.backend.repositories.AgentPinRepository;
+import ro.alexk.backend.repositories.AgentRepository;
+import ro.alexk.backend.repositories.HwAgentRepository;
 import ro.alexk.backend.services.AgentService;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -18,7 +22,7 @@ public class AgentServiceImpl implements AgentService {
     private final HwAgentRepository hwAgentRepository;
 
     @Override
-    public void createHardwareAgent(PairRequest pr) {
+    public HwAgent createHardwareAgent(PairRequest pr) {
         var blueprint = pr.getBlueprint();
 
         var agent = agentRepository.save(Agent.builder()
@@ -27,7 +31,7 @@ public class AgentServiceImpl implements AgentService {
                 .build()
         );
 
-        agentParamsRepository.saveAll(blueprint.getParams().stream()
+        var params = agentParamsRepository.saveAll(blueprint.getParams().stream()
                 .map(p -> AgentParam.builder()
                         .param(p)
                         .agent(agent)
@@ -35,8 +39,9 @@ public class AgentServiceImpl implements AgentService {
                         .build()
                 ).toList()
         );
+        agent.setParams(params);
 
-        agentPinRepository.saveAll(blueprint.getPins().stream()
+        var pins = agentPinRepository.saveAll(blueprint.getPins().stream()
                 .map(pin -> AgentPin.builder()
                         .pin(pin)
                         .agent(agent)
@@ -45,13 +50,14 @@ public class AgentServiceImpl implements AgentService {
                         .build()
                 ).toList()
         );
+        agent.setPins(pins);
 
         var hwAgent = HwAgent.builder()
                 .agent(agent)
                 .macAddr(pr.getMacAddr())
                 .build();
 
-        hwAgentRepository.save(hwAgent);
+        return hwAgentRepository.save(hwAgent);
     }
 
     @Override
@@ -67,5 +73,10 @@ public class AgentServiceImpl implements AgentService {
                         .build()
                 )
                 .toList();
+    }
+
+    @Override
+    public Optional<AgentDTO> getById(Integer id) {
+        return agentRepository.getDtoById(id);
     }
 }

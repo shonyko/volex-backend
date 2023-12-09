@@ -1,11 +1,17 @@
 package ro.alexk.backend.services.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ro.alexk.backend.Constants.Events;
+import ro.alexk.backend.entities.AgentPin;
 import ro.alexk.backend.entities.PairRequest;
 import ro.alexk.backend.models.db.WifiCredentials;
+import ro.alexk.backend.models.rest.AgentDTO;
+import ro.alexk.backend.models.rest.AgentParamDTO;
+import ro.alexk.backend.models.rest.AgentPinDTO;
 import ro.alexk.backend.models.rest.PairRequestDTO;
 import ro.alexk.backend.models.websocket.PairRequestEvent;
 import ro.alexk.backend.repositories.BlueprintRepository;
@@ -13,6 +19,7 @@ import ro.alexk.backend.repositories.HwAgentRepository;
 import ro.alexk.backend.repositories.PairRequestRepository;
 import ro.alexk.backend.services.AgentService;
 import ro.alexk.backend.services.PairRequestService;
+import ro.alexk.backend.services.SocketService;
 import ro.alexk.backend.services.WifiCredentialsService;
 
 import java.sql.SQLException;
@@ -32,6 +39,9 @@ public class PairRequestServiceImpl implements PairRequestService {
     private final WifiCredentialsService wifiCredentialsService;
     private final AgentService agentService;
 
+    @Setter
+    private SocketService socketService;
+
     @Override
     public Optional<WifiCredentials> handlePairRequestEvent(PairRequestEvent pre) {
         if (hwAgentRepository.existsByMacAddr(pre.mac())) {
@@ -50,8 +60,33 @@ public class PairRequestServiceImpl implements PairRequestService {
         if (prs.isEmpty()) {
             return false;
         }
-
-        agentService.createHardwareAgent(prs.get(0));
+        var hwAgent = agentService.createHardwareAgent(prs.getFirst());
+        var agent = hwAgent.getAgent();
+        agent.getParams().stream()
+                .map(ap -> new AgentParamDTO(
+                        ap.getId(),
+                        ap.getParam().getName(),
+                        ap.getParam().getBlueprint().getId(),
+                        ap.getParam().getDataType().getName(),
+                        ap.getValue(),
+                        ap.getAgent().getId()
+                )).forEach(dto -> socketService.broadcast(Events.NEW_PARAM, dto));
+        agent.getPins().stream()
+                .map(ap -> new AgentPinDTO(
+                        ap.getId(),
+                        ap.getPin().getName(),
+                        ap.getPin().getType(),
+                        ap.getPin().getDataType().getName(),
+                        ap.getPin().getBlueprint().getId(),
+                        ap.getAgent().getId(),
+                        ap.getLastValue(),
+                        Optional.ofNullable(ap.getSrcPin()).map(AgentPin::getId).orElse(null)
+                )).forEach(dto -> socketService.broadcast(Events.NEW_PIN, dto));
+        socketService.broadcast(
+                Events.NEW_AGENT,
+                new AgentDTO(agent.getId(), agent.getName(), agent.getBlueprint().getId(), hwAgent.getMacAddr())
+        );
+        socketService.broadcast(Events.DEL_PAIR_REQUEST, id);
         return true;
     }
 
@@ -78,6 +113,11 @@ public class PairRequestServiceImpl implements PairRequestService {
                         .blueprint(blueprintReference)
                         .date(LocalDateTime.now())
                         .build()
-                ).ifPresentOrElse(repository::save, () -> log.error("Blueprint not found: {}", pre.type()));
+                ).ifPresentOrElse((pairRequest) -> {
+                    PairRequest saved = repository.save(pairRequest);
+                    socketService.broadcast(Events.NEW_PAIR_REQUEST,
+                            new PairRequestDTO(saved.getId(), saved.getBlueprint().getId(), saved.getMacAddr(), saved.getDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")))
+                    );
+                }, () -> log.error("Blueprint not found: {}", pre.type()));
     }
 }

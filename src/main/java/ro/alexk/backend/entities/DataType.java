@@ -1,10 +1,12 @@
 package ro.alexk.backend.entities;
 
 import jakarta.persistence.*;
+import lombok.Getter;
 
 import java.util.List;
 
 @Entity
+@Getter
 public class DataType {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

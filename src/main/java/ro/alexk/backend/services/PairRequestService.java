@@ -8,7 +8,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PairRequestService {
+    void setSocketService(SocketService socketService);
+
     Optional<WifiCredentials> handlePairRequestEvent(PairRequestEvent pre);
+
     boolean accept(Integer id);
+
     List<PairRequestDTO> getAll();
 }
