@@ -26,9 +26,10 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
-import static ro.alexk.backend.utils.Utils.*;
+import static ro.alexk.backend.utils.Utils.deserialize;
+import static ro.alexk.backend.utils.Utils.toJsonObject;
 
 @Slf4j
 @Service
@@ -47,10 +48,14 @@ public class SocketServiceImpl implements SocketService {
         subscriptions.add(event);
     }
 
-    private <T> Emitter.Listener createCallback(Consumer<T> consumer, Class<T> clazz) {
+    private <T> Emitter.Listener createCallback(BiConsumer<T, Optional<Ack>> consumer, Class<T> clazz) {
         return data -> {
+            Ack ack = switch (data[data.length - 1]) {
+                case Ack a -> a;
+                default -> null;
+            };
             switch (deserialize(clazz, data)) {
-                case Ok(T val) -> consumer.accept(val);
+                case Ok(T val) -> consumer.accept(val, Optional.ofNullable(ack));
                 case Err(Error err) -> log.error("Could not deserialize data: ", err);
             }
         };
@@ -75,6 +80,7 @@ public class SocketServiceImpl implements SocketService {
         addEventHandler(socket, Events.PAIR, createCallback(this::onPairRequest, PairRequestEvent.class));
         addEventHandler(socket, Events.CONFIG, createCallback(this::onConfigRequest, ConfigRequestEvent.class));
         addEventHandler(socket, Events.PIN_VALUE, createCallback(this::onPinValue, PinValueEvent.class));
+        addEventHandler(socket, "test", createCallback(this::test, Response.class));
 
         socket.connect();
 
@@ -82,23 +88,23 @@ public class SocketServiceImpl implements SocketService {
         pairRequestService.setSocketService(this);
     }
 
-    private void emit(String event, Message msg, Ack ack) {
+    private <T> void emit(Message<T> msg, Ack ack) {
         switch (toJsonObject(msg)) {
             case Ok(var jsonObj) -> {
-                socket.emit(event, jsonObj, ack);
+                socket.emit(Events.MESSAGE, jsonObj, ack);
                 log.info("Sent {}", msg);
             }
             case Err(Error err) -> log.error("Could not serialize message: ", err);
         }
     }
 
-    private void emit(String event, Message msg) {
-        emit(event, msg, null);
+    private <T> void emit(Message<T> msg) {
+        emit(msg, null);
     }
 
     public Mono<Response> sendMessage(Message msg) {
         return Mono.create(emitter ->
-                emit(Events.MESSAGE, msg, new AckWithTimeout(2000) {
+                emit(msg, new AckWithTimeout(2000) {
                     @Override
                     public void onSuccess(Object... data) {
                         switch (deserialize(Response.class, data)) {
@@ -121,13 +127,13 @@ public class SocketServiceImpl implements SocketService {
     public <T> void broadcast(String event, T obj) {
 //        switch (toJson(obj)) {
 //            case Ok(String data) -> {
-                switch (toJsonObject(new Broadcast<>(event, obj))) {
-                    case Ok(var jsonObj) -> {
-                        socket.emit(Events.BROADCAST, jsonObj);
-                        log.info("Sent {}", jsonObj);
-                    }
-                    case Err(Error err) -> log.error("Could not serialize broadcast object: ", err);
-                }
+        switch (toJsonObject(new Broadcast<>(event, obj))) {
+            case Ok(var jsonObj) -> {
+                socket.emit(Events.BROADCAST, jsonObj);
+                log.info("Sent {}", jsonObj);
+            }
+            case Err(Error err) -> log.error("Could not serialize broadcast object: ", err);
+        }
 //            }
 //            case Err(Error err) -> log.error("Could not serialize data for broadcast: ", err);
 //        }
@@ -146,7 +152,7 @@ public class SocketServiceImpl implements SocketService {
         log.info("Service registered!");
     }
 
-    private void onPairRequest(PairRequestEvent pr) {
+    private void onPairRequest(PairRequestEvent pr, Optional<Ack> ack) {
         pairRequestService.handlePairRequestEvent(pr)
                 .map(wifiCredentials -> PairAckCmd
                         .builder()
@@ -154,48 +160,52 @@ public class SocketServiceImpl implements SocketService {
                         .ssid(wifiCredentials.ssid())
                         .pass(wifiCredentials.pass())
                         .build()
-                ).map(cmd ->
-                        switch (toJson(cmd)) {
-                            case Ok(String json) -> Message
-                                    .builder()
-                                    .to(Services.SERIAL_LISTENER)
-                                    .cmd(PairAckCmd.CMD)
-                                    .data(json)
-                                    .build();
-                            case Err(Error err) -> {
-                                log.error("Could not serialize command: ", err);
-                                yield null;
-                            }
-                        }
-                ).ifPresent(msg -> emit(Events.MESSAGE, msg));
+                ).map(cmd -> Message
+                        .builder()
+                        .to(Services.SERIAL_LISTENER)
+                        .event(PairAckCmd.CMD)
+                        .data(cmd)
+                        .build()
+                ).ifPresent(this::emit);
+//                    ack.ifPresent(a -> {
+//                        switch (toJsonObject(new Response(true, null, null))) {
+//                            case Ok(var jsonObj) -> a.call(jsonObj);
+//                            case Err(Error err) -> log.error("Could not serialize pair request ack response: ", err);
+//                        }
+//                    });
+//                }, () -> ack.ifPresent(a -> {
+//                    switch (toJsonObject(new Response(false, "Request still pending", null))) {
+//                        case Ok(var jsonObj) -> a.call(jsonObj);
+//                        case Err(Error err) -> log.error("Could not serialize pair request ack response: ", err);
+//                    }
+//                }));
     }
 
-    private void onConfigRequest(ConfigRequestEvent cr) {
+    private void onConfigRequest(ConfigRequestEvent cr, Optional<Ack> ack) {
         var config = configRequestService.handleConfigRequest(cr);
         Optional.of(config)
-                .map(cfg -> switch (toJson(cfg)) {
-                    case Ok(String json) -> ConfigCmd.builder()
-                            .mac(cr.mac())
-                            .config(json)
-                            .build();
-                    case Err(Error err) -> {
-                        log.error("Could not serialize configuration: ", err);
-                        yield null;
-                    }
-                }).map(cmd -> switch (toJson(cmd)) {
-                    case Ok(String json) -> Message.builder()
-                            .to(Services.MQTT_BROKER)
-                            .cmd(ConfigCmd.CMD)
-                            .data(json)
-                            .build();
-                    case Err(Error err) -> {
-                        log.error("Could not serialize command: ", err);
-                        yield null;
-                    }
-                }).ifPresent(msg -> emit(Events.MESSAGE, msg));
+                .map(cfg -> ConfigCmd.builder()
+                        .mac(cr.mac())
+                        .config(cfg)
+                        .build()
+                ).map(cmd -> Message.builder()
+                        .to(Services.MQTT_BROKER)
+                        .event(ConfigCmd.CMD)
+                        .data(cmd)
+                        .build()
+                ).ifPresent(this::emit);
     }
 
-    private void onPinValue(PinValueEvent pv) {
+    private void onPinValue(PinValueEvent pv, Optional<Ack> ack) {
         agentPinService.handlePinValueEvent(pv);
+    }
+
+    private void test(Response res, Optional<Ack> ack) {
+        ack.ifPresent(a -> {
+            switch (toJsonObject(res)) {
+                case Ok(var jsonObj) -> a.call(jsonObj);
+                case Err(Error err) -> log.error("Could not serialize pair request ack response: ", err);
+            }
+        });
     }
 }

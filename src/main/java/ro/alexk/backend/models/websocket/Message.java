@@ -3,9 +3,9 @@ package ro.alexk.backend.models.websocket;
 import lombok.Builder;
 
 @Builder
-public record Message(
+public record Message<T>(
         String to,
-        String cmd,
-        String data
+        String event,
+        T data
 ) {
 }
