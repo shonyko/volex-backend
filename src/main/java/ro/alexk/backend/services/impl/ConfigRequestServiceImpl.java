@@ -16,6 +16,7 @@ import ro.alexk.backend.repositories.HwAgentRepository;
 import ro.alexk.backend.services.ConfigRequestService;
 
 import java.sql.SQLException;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -32,6 +33,7 @@ public class ConfigRequestServiceImpl implements ConfigRequestService {
 
         var params = hwAgent.getAgent().getParams().stream()
                 .map(p -> new Param(p.getId(), p.getValue()))
+                .sorted(Comparator.comparingInt(Param::id))
                 .toList();
 
         var pins = hwAgent.getAgent().getPins().stream().collect(Collectors
@@ -40,11 +42,6 @@ public class ConfigRequestServiceImpl implements ConfigRequestService {
 
         var inputs = pins.get(false).stream().map(p -> {
             var srcPin = agentPinRepository.getSrcPinById(p.getId());
-//            if(srcPin.isPresent()) {
-//                System.out.println(p.getId());
-//                System.out.println(srcPin.get().getId());
-//                System.out.println(srcPin.get().getLastValue());
-//            }
             var srcPinId = srcPin.map(SrcPin::getId).orElse(0);
             var value = srcPin.map(SrcPin::getLastValue).orElse(p.getLastValue());
             return new Input(p.getId(), srcPinId, value);

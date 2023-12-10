@@ -1,10 +1,16 @@
 package ro.alexk.backend.entities;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class Param {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

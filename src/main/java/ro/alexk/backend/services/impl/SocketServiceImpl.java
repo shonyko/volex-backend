@@ -14,10 +14,7 @@ import ro.alexk.backend.Constants.Events;
 import ro.alexk.backend.Constants.Services;
 import ro.alexk.backend.config.WebSocketConfig;
 import ro.alexk.backend.models.websocket.*;
-import ro.alexk.backend.services.AgentPinService;
-import ro.alexk.backend.services.ConfigRequestService;
-import ro.alexk.backend.services.PairRequestService;
-import ro.alexk.backend.services.SocketService;
+import ro.alexk.backend.services.*;
 import ro.alexk.backend.utils.errors.Error;
 import ro.alexk.backend.utils.result.Err;
 import ro.alexk.backend.utils.result.Ok;
@@ -38,6 +35,7 @@ public class SocketServiceImpl implements SocketService {
     private final PairRequestService pairRequestService;
     private final ConfigRequestService configRequestService;
     private final AgentPinService agentPinService;
+    private final BlueprintService blueprintService;
     private final WebSocketConfig webSocketConfig;
 
     private final List<String> subscriptions = new ArrayList<>();
@@ -80,12 +78,14 @@ public class SocketServiceImpl implements SocketService {
         addEventHandler(socket, Events.PAIR, createCallback(this::onPairRequest, PairRequestEvent.class));
         addEventHandler(socket, Events.CONFIG, createCallback(this::onConfigRequest, ConfigRequestEvent.class));
         addEventHandler(socket, Events.PIN_VALUE, createCallback(this::onPinValue, PinValueEvent.class));
+        addEventHandler(socket, Events.BLUEPRINT, createCallback(this::onBlueprintEvent, BlueprintEvent.class));
         addEventHandler(socket, "test", createCallback(this::test, Response.class));
 
         socket.connect();
 
         agentPinService.setSocketService(this);
         pairRequestService.setSocketService(this);
+        blueprintService.setSocketService(this);
     }
 
     private <T> void emit(Message<T> msg, Ack ack) {
@@ -198,6 +198,16 @@ public class SocketServiceImpl implements SocketService {
 
     private void onPinValue(PinValueEvent pv, Optional<Ack> ack) {
         agentPinService.handlePinValueEvent(pv);
+    }
+
+    private void onBlueprintEvent(BlueprintEvent be, Optional<Ack> ack) {
+        blueprintService.handleBlueprintEvent(be);
+        ack.ifPresent(a -> {
+            switch (toJsonObject(new Response(true, null, null))) {
+                case Ok(var jsonObj) -> a.call(jsonObj);
+                case Err(Error err) -> log.error("Could not serialize blueprint event ack response: ", err);
+            }
+        });
     }
 
     private void test(Response res, Optional<Ack> ack) {

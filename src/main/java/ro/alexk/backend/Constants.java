@@ -5,6 +5,7 @@ public interface Constants {
         String BROADCAST = "event";
         String MESSAGE = "msg";
         String PAIR = "pair";
+        String BLUEPRINT = "blueprint";
         String CONFIG = "conf";
         String PARAM_VALUE = "param_value";
         String PIN_VALUE = "pin_value";
@@ -14,6 +15,8 @@ public interface Constants {
         String NEW_PARAM = "new_param";
         String NEW_PIN = "new_pin";
         String NEW_AGENT = "new_agent";
+        String NEW_BLUEPRINT = "new_blueprint";
+        String DEL_BLUEPRINT = "del_blueprint";
 
         interface Socket {
             String REGISTER = "register";

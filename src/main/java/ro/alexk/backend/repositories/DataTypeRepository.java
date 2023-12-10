@@ -6,6 +6,6 @@ import org.springframework.data.repository.query.Param;
 import ro.alexk.backend.entities.DataType;
 
 public interface DataTypeRepository extends JpaRepository<DataType, Integer> {
-    @Query("select dt.id from DataType dt where dt.name = :name")
+    @Query(value = "select dt.id from data_type dt where dt.name = :name", nativeQuery = true)
     int getIdByName(@Param("name") String name);
 }
