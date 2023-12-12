@@ -5,9 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ro.alexk.backend.models.rest.BlueprintDTO;
 import ro.alexk.backend.services.BlueprintService;
-import ro.alexk.backend.utils.errors.Error;
 import ro.alexk.backend.utils.result.Err;
-import ro.alexk.backend.utils.result.Ok;
 
 import java.util.List;
 
@@ -24,9 +22,9 @@ public class BlueprintsController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<String> delete(@PathVariable Integer id) {
-        return switch (blueprintService.delete(id)) {
-            case Ok(var ignored) -> ResponseEntity.noContent().build();
-            case Err(Error err) -> ResponseEntity.badRequest().body(err.getMessage());
-        };
+        if(blueprintService.delete(id) instanceof Err<Void> e) {
+            return ResponseEntity.badRequest().body(e.err().getMessage());
+        }
+        return ResponseEntity.noContent().build();
     }
 }

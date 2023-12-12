@@ -3,12 +3,14 @@ package ro.alexk.backend.utils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.json.JSONObject;
+import ro.alexk.backend.utils.errors.Error;
 import ro.alexk.backend.utils.option.None;
 import ro.alexk.backend.utils.option.Some;
 import ro.alexk.backend.utils.result.Err;
-import ro.alexk.backend.utils.errors.Error;
 import ro.alexk.backend.utils.result.Ok;
 import ro.alexk.backend.utils.result.Result;
+
+import java.util.function.Consumer;
 
 public class Utils {
     private final static ObjectMapper objectMapper = new ObjectMapper();
@@ -61,5 +63,13 @@ public class Utils {
 
     public static <V> Err<V> err(Throwable cause) {
         return new Err<>(new Error(cause));
+    }
+
+    public static <V> void okOrElse(Result<V> res, Consumer<V> ok, Consumer<Error> el) {
+        if(res instanceof Ok<V> o) {
+            ok.accept(o.value());
+        } else if (res instanceof Err<V> e) {
+            el.accept(e.err());
+        }
     }
 }

@@ -60,7 +60,7 @@ public class PairRequestServiceImpl implements PairRequestService {
         if (prs.isEmpty()) {
             return false;
         }
-        var hwAgent = agentService.createHardwareAgent(prs.getFirst());
+        var hwAgent = agentService.createHardwareAgent(prs.get(0));
         var agent = hwAgent.getAgent();
         agent.getParams().stream()
                 .map(ap -> new AgentParamDTO(

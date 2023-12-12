@@ -15,9 +15,6 @@ import ro.alexk.backend.Constants.Services;
 import ro.alexk.backend.config.WebSocketConfig;
 import ro.alexk.backend.models.websocket.*;
 import ro.alexk.backend.services.*;
-import ro.alexk.backend.utils.errors.Error;
-import ro.alexk.backend.utils.result.Err;
-import ro.alexk.backend.utils.result.Ok;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -25,8 +22,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 
-import static ro.alexk.backend.utils.Utils.deserialize;
-import static ro.alexk.backend.utils.Utils.toJsonObject;
+import static ro.alexk.backend.utils.Utils.*;
 
 @Slf4j
 @Service
@@ -48,14 +44,16 @@ public class SocketServiceImpl implements SocketService {
 
     private <T> Emitter.Listener createCallback(BiConsumer<T, Optional<Ack>> consumer, Class<T> clazz) {
         return data -> {
-            Ack ack = switch (data[data.length - 1]) {
-                case Ack a -> a;
-                default -> null;
-            };
-            switch (deserialize(clazz, data)) {
-                case Ok(T val) -> consumer.accept(val, Optional.ofNullable(ack));
-                case Err(Error err) -> log.error("Could not deserialize data: ", err);
+            Ack ack;
+            if (data[data.length - 1] instanceof Ack a) {
+                ack = a;
+            } else {
+                ack = null;
             }
+            okOrElse(deserialize(clazz, data),
+                    val -> consumer.accept(val, Optional.ofNullable(ack)),
+                    err -> log.error("Could not deserialize data: ", err)
+            );
         };
     }
 
@@ -67,12 +65,12 @@ public class SocketServiceImpl implements SocketService {
         socket.on(Socket.EVENT_CONNECT, none -> {
             log.info("Connected!");
 
-            socket.emit(Events.Socket.REGISTER, Services.BACKEND, (Ack) data -> {
-                switch (deserialize(Response.class, data)) {
-                    case Ok(Response res) -> onRegistered(res);
-                    case Err(Error err) -> log.error("Could not deserialize data: ", err);
-                }
-            });
+            socket.emit(Events.Socket.REGISTER, Services.BACKEND,
+                    (Ack) data -> okOrElse(deserialize(Response.class, data),
+                            this::onRegistered,
+                            err -> log.error("Could not deserialize data: ", err)
+                    )
+            );
         });
 
         addEventHandler(socket, Events.PAIR, createCallback(this::onPairRequest, PairRequestEvent.class));
@@ -89,31 +87,31 @@ public class SocketServiceImpl implements SocketService {
     }
 
     private <T> void emit(Message<T> msg, Ack ack) {
-        switch (toJsonObject(msg)) {
-            case Ok(var jsonObj) -> {
-                socket.emit(Events.MESSAGE, jsonObj, ack);
-                log.info("Sent {}", msg);
-            }
-            case Err(Error err) -> log.error("Could not serialize message: ", err);
-        }
+        okOrElse(toJsonObject(msg),
+                jsonObj -> {
+                    socket.emit(Events.MESSAGE, jsonObj, ack);
+                    log.info("Sent {}", msg);
+                },
+                err -> log.error("Could not serialize message: ", err)
+        );
     }
 
     private <T> void emit(Message<T> msg) {
         emit(msg, null);
     }
 
-    public Mono<Response> sendMessage(Message msg) {
+    public Mono<Response> sendMessage(Message<?> msg) {
         return Mono.create(emitter ->
                 emit(msg, new AckWithTimeout(2000) {
                     @Override
                     public void onSuccess(Object... data) {
-                        switch (deserialize(Response.class, data)) {
-                            case Ok(Response res) -> emitter.success(res);
-                            case Err(Error err) -> {
-                                log.error("Could not deserialize data: ", err);
-                                emitter.error(err.getCause());
-                            }
-                        }
+                        okOrElse(deserialize(Response.class, data),
+                                emitter::success,
+                                err -> {
+                                    log.error("Could not deserialize data: ", err);
+                                    emitter.error(err.getCause());
+                                }
+                        );
                     }
 
                     @Override
@@ -127,13 +125,13 @@ public class SocketServiceImpl implements SocketService {
     public <T> void broadcast(String event, T obj) {
 //        switch (toJson(obj)) {
 //            case Ok(String data) -> {
-        switch (toJsonObject(new Broadcast<>(event, obj))) {
-            case Ok(var jsonObj) -> {
-                socket.emit(Events.BROADCAST, jsonObj);
-                log.info("Sent {}", jsonObj);
-            }
-            case Err(Error err) -> log.error("Could not serialize broadcast object: ", err);
-        }
+        okOrElse(toJsonObject(new Broadcast<>(event, obj)),
+                jsonObj -> {
+                    socket.emit(Events.BROADCAST, jsonObj);
+                    log.info("Sent {}", jsonObj);
+                },
+                err -> log.error("Could not serialize broadcast object: ", err)
+        );
 //            }
 //            case Err(Error err) -> log.error("Could not serialize data for broadcast: ", err);
 //        }
@@ -202,20 +200,18 @@ public class SocketServiceImpl implements SocketService {
 
     private void onBlueprintEvent(BlueprintEvent be, Optional<Ack> ack) {
         blueprintService.handleBlueprintEvent(be);
-        ack.ifPresent(a -> {
-            switch (toJsonObject(new Response(true, null, null))) {
-                case Ok(var jsonObj) -> a.call(jsonObj);
-                case Err(Error err) -> log.error("Could not serialize blueprint event ack response: ", err);
-            }
-        });
+        ack.ifPresent(a ->
+                okOrElse(toJsonObject(new Response(true, null, null)),
+                        a::call,
+                        err -> log.error("Could not serialize blueprint event ack response: ", err)
+                )
+        );
     }
 
     private void test(Response res, Optional<Ack> ack) {
-        ack.ifPresent(a -> {
-            switch (toJsonObject(res)) {
-                case Ok(var jsonObj) -> a.call(jsonObj);
-                case Err(Error err) -> log.error("Could not serialize pair request ack response: ", err);
-            }
-        });
+        ack.ifPresent(a -> okOrElse(toJsonObject(res),
+                a::call,
+                err -> log.error("Could not serialize pair request ack response: ", err)
+        ));
     }
 }

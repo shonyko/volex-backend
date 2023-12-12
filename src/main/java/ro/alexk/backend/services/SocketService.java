@@ -6,6 +6,6 @@ import ro.alexk.backend.models.websocket.Response;
 
 public interface SocketService {
 
-    Mono<Response> sendMessage(Message msg);
+    Mono<Response> sendMessage(Message<?> msg);
     <T> void broadcast(String event, T obj);
 }
