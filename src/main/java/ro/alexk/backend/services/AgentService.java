@@ -8,9 +8,13 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AgentService {
+    void setSocketService(SocketService socketService);
+
     HwAgent createHardwareAgent(PairRequest pr);
 
     List<AgentDTO> getAll();
 
     Optional<AgentDTO> getById(Integer id);
+
+    Optional<AgentDTO> createVirtualAgent(Integer blueprintId);
 }

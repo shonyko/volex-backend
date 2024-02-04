@@ -2,10 +2,7 @@ package ro.alexk.backend.controllers;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ro.alexk.backend.models.rest.AgentDTO;
 import ro.alexk.backend.services.AgentService;
 
@@ -25,5 +22,10 @@ public class AgentsController {
     @GetMapping("/{id}")
     public ResponseEntity<AgentDTO> getById(@PathVariable Integer id) {
         return agentService.getById(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/add-virtual")
+    public ResponseEntity<AgentDTO> addVirtual(@RequestParam Integer blueprintId) {
+        return agentService.createVirtualAgent(blueprintId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

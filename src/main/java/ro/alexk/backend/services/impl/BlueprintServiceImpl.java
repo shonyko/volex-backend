@@ -18,6 +18,7 @@ import ro.alexk.backend.services.SocketService;
 import ro.alexk.backend.utils.result.Result;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static ro.alexk.backend.utils.Utils.err;
@@ -30,7 +31,7 @@ public class BlueprintServiceImpl implements BlueprintService {
     private final PinRepository pinRepository;
     private final ParamRepository paramRepository;
     private final DataTypeRepository dataTypeRepository;
-    private final AgentRepository agentRepository;
+
     @Setter
     private SocketService socketService;
 
@@ -96,8 +97,12 @@ public class BlueprintServiceImpl implements BlueprintService {
             return err("Can't delete hardware blueprints");
         }
         repository.deleteById(id);
-        //TODO: maybe also delete from vm_server
         socketService.broadcast(Events.DEL_BLUEPRINT, id);
         return ok(null);
+    }
+
+    @Override
+    public Optional<String> getNameById(int id) {
+        return repository.getNameById(id);
     }
 }

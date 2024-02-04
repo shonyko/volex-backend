@@ -8,15 +8,19 @@ import ro.alexk.backend.entities.Pin;
 import ro.alexk.backend.models.db.Config;
 import ro.alexk.backend.models.db.Input;
 import ro.alexk.backend.models.db.Param;
+import ro.alexk.backend.models.db.VirtualAgent;
+import ro.alexk.backend.models.db.projections.config.AgentConfig;
 import ro.alexk.backend.models.db.projections.config.PinConfig;
 import ro.alexk.backend.models.db.projections.config.SrcPin;
 import ro.alexk.backend.models.websocket.ConfigRequestEvent;
 import ro.alexk.backend.repositories.AgentPinRepository;
+import ro.alexk.backend.repositories.AgentRepository;
 import ro.alexk.backend.repositories.HwAgentRepository;
 import ro.alexk.backend.services.ConfigRequestService;
 
 import java.sql.SQLException;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -25,18 +29,30 @@ import java.util.stream.Collectors;
 public class ConfigRequestServiceImpl implements ConfigRequestService {
     private final HwAgentRepository hwAgentRepository;
     private final AgentPinRepository agentPinRepository;
+    private final AgentRepository agentRepository;
 
     @Override
     @Transactional(rollbackFor = SQLException.class)
     public Config handleConfigRequest(ConfigRequestEvent cre) {
-        var hwAgent = hwAgentRepository.findByMacAddr(cre.mac());
+        AgentConfig config;
+        if (cre.id() != null) {
+            config = agentRepository.findConfigById(cre.id());
+        } else config = hwAgentRepository.findByMacAddr(cre.mac()).getAgent();
+        return buildConfig(config);
+    }
 
-        var params = hwAgent.getAgent().getParams().stream()
+    @Override
+    public List<VirtualAgent> getVMConfig() {
+        return agentRepository.getVirtualAgents();
+    }
+
+    private Config buildConfig(AgentConfig agent) {
+        var params = agent.getParams().stream()
                 .map(p -> new Param(p.getId(), p.getValue()))
                 .sorted(Comparator.comparingInt(Param::id))
                 .toList();
 
-        var pins = hwAgent.getAgent().getPins().stream().collect(Collectors
+        var pins = agent.getPins().stream().collect(Collectors
                 .partitioningBy(p -> Pin.PinType.OUT.equals(p.getPin().getType()))
         );
 
@@ -50,7 +66,7 @@ public class ConfigRequestServiceImpl implements ConfigRequestService {
         var outputs = pins.get(true).stream().map(PinConfig::getId).toList();
 
         return Config.builder()
-                .id(hwAgent.getAgent().getId())
+                .id(agent.getId())
                 .params(params)
                 .inputs(inputs)
                 .outputs(outputs)

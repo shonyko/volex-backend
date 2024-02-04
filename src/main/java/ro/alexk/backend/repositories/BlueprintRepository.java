@@ -15,4 +15,7 @@ public interface BlueprintRepository extends JpaRepository<Blueprint, Integer> {
     List<BlueprintDTO> getAll();
 
     boolean existsByIdAndIsHardware(int id, boolean isHardware);
+
+    @Query("select b.name from Blueprint b where b.id = :id")
+    Optional<String> getNameById(int id);
 }

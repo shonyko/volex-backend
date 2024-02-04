@@ -33,6 +33,7 @@ public class SocketServiceImpl implements SocketService {
     private final AgentPinService agentPinService;
     private final BlueprintService blueprintService;
     private final WebSocketConfig webSocketConfig;
+    private final AgentService agentService;
 
     private final List<String> subscriptions = new ArrayList<>();
     private Socket socket;
@@ -57,6 +58,18 @@ public class SocketServiceImpl implements SocketService {
         };
     }
 
+    private <T> Emitter.Listener createCallback(BiConsumer<T, Optional<Ack>> consumer) {
+        return data -> {
+            Ack ack;
+            if (data[data.length - 1] instanceof Ack a) {
+                ack = a;
+            } else {
+                ack = null;
+            }
+            consumer.accept(null, Optional.ofNullable(ack));
+        };
+    }
+
     @PostConstruct
     private void initSocket() {
         String connString = String.format("ws://%s:%s", webSocketConfig.addr(), webSocketConfig.port());
@@ -75,8 +88,10 @@ public class SocketServiceImpl implements SocketService {
 
         addEventHandler(socket, Events.PAIR, createCallback(this::onPairRequest, PairRequestEvent.class));
         addEventHandler(socket, Events.CONFIG, createCallback(this::onConfigRequest, ConfigRequestEvent.class));
+        addEventHandler(socket, Events.VM_CONFIG, createCallback(this::onVMConfigRequest));
         addEventHandler(socket, Events.PIN_VALUE, createCallback(this::onPinValue, PinValueEvent.class));
         addEventHandler(socket, Events.BLUEPRINT, createCallback(this::onBlueprintEvent, BlueprintEvent.class));
+        addEventHandler(socket, Events.BLUEPRINT_NAME, createCallback(this::onBlueprintNameEvent, Integer.class));
         addEventHandler(socket, "test", createCallback(this::test, Response.class));
 
         socket.connect();
@@ -84,6 +99,7 @@ public class SocketServiceImpl implements SocketService {
         agentPinService.setSocketService(this);
         pairRequestService.setSocketService(this);
         blueprintService.setSocketService(this);
+        agentService.setSocketService(this);
     }
 
     private <T> void emit(Message<T> msg, Ack ack) {
@@ -183,7 +199,7 @@ public class SocketServiceImpl implements SocketService {
         var config = configRequestService.handleConfigRequest(cr);
         Optional.of(config)
                 .map(cfg -> ConfigCmd.builder()
-                        .mac(cr.mac())
+                        .mac(cr.computeMac())
                         .config(cfg)
                         .build()
                 ).map(cmd -> Message.builder()
@@ -192,6 +208,20 @@ public class SocketServiceImpl implements SocketService {
                         .data(cmd)
                         .build()
                 ).ifPresent(this::emit);
+    }
+
+    private void onVMConfigRequest(Object ignored, Optional<Ack> ack) {
+        var config = configRequestService.getVMConfig();
+        okOrElse(toJson(config),
+                json -> okOrElse(toJsonObject(new Response(true, null, json)),
+                        jsonObj -> {
+                            ack.ifPresent(a -> a.call(jsonObj));
+                            log.info("Sent VM config: {}", json);
+                        },
+                        err -> log.error("Could not serialize VM config ack response: ", err)
+                ),
+                err -> log.error("Could not serialize VM config: ", err)
+        );
     }
 
     private void onPinValue(PinValueEvent pv, Optional<Ack> ack) {
@@ -204,6 +234,16 @@ public class SocketServiceImpl implements SocketService {
                 okOrElse(toJsonObject(new Response(true, null, null)),
                         a::call,
                         err -> log.error("Could not serialize blueprint event ack response: ", err)
+                )
+        );
+    }
+
+    private void onBlueprintNameEvent(Integer blueprintId, Optional<Ack> ack) {
+        var name = blueprintService.getNameById(blueprintId).orElse(null);
+        ack.ifPresent(a ->
+                okOrElse(toJsonObject(new Response(true, null, name)),
+                        a::call,
+                        err -> log.error("Could not serialize blueprint name event ack response: ", err)
                 )
         );
     }

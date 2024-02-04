@@ -7,6 +7,7 @@ public interface Constants {
         String PAIR = "pair";
         String BLUEPRINT = "blueprint";
         String CONFIG = "conf";
+        String VM_CONFIG = "vm_conf";
         String PARAM_VALUE = "param_value";
         String PIN_VALUE = "pin_value";
         String PIN_SOURCE = "pin_source";
@@ -17,6 +18,7 @@ public interface Constants {
         String NEW_AGENT = "new_agent";
         String NEW_BLUEPRINT = "new_blueprint";
         String DEL_BLUEPRINT = "del_blueprint";
+        String BLUEPRINT_NAME= "blueprint_name";
 
         interface Socket {
             String REGISTER = "register";
