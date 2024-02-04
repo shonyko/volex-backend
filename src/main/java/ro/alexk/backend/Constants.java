@@ -16,6 +16,7 @@ public interface Constants {
         String NEW_PARAM = "new_param";
         String NEW_PIN = "new_pin";
         String NEW_AGENT = "new_agent";
+        String DEL_AGENT = "del_agent";
         String NEW_BLUEPRINT = "new_blueprint";
         String DEL_BLUEPRINT = "del_blueprint";
         String BLUEPRINT_NAME= "blueprint_name";

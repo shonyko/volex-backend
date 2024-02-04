@@ -24,6 +24,12 @@ public class AgentsController {
         return agentService.getById(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> unlink(@PathVariable Integer id) {
+        agentService.unlink(id);
+        return ResponseEntity.ok(null);
+    }
+
     @PostMapping("/add-virtual")
     public ResponseEntity<AgentDTO> addVirtual(@RequestParam Integer blueprintId) {
         return agentService.createVirtualAgent(blueprintId).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());

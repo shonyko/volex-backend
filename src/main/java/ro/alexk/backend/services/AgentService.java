@@ -17,4 +17,6 @@ public interface AgentService {
     Optional<AgentDTO> getById(Integer id);
 
     Optional<AgentDTO> createVirtualAgent(Integer blueprintId);
+
+    void unlink(Integer id);
 }

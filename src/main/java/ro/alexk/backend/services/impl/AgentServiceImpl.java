@@ -99,6 +99,14 @@ public class AgentServiceImpl implements AgentService {
         return agentDto;
     }
 
+    @Override
+    public void unlink(Integer id) {
+        // TODO: maybe restrict it only for software agents as there is no way to block access to the network for hardware ones
+        agentRepository.deleteById(id);
+        // TODO: maybe include removing it from the VM server as a transaction step
+        socketService.broadcast(Constants.Events.DEL_AGENT, id);
+    }
+
     private Agent createAgent(Blueprint blueprint) {
         var agent = agentRepository.save(Agent.builder()
                 .blueprint(blueprint)
